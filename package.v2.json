@@ -3,7 +3,7 @@
     "name": "网盘订阅助手",
     "description": "整合网盘能力与多渠道资源搜索，自动查找并补充订阅缺失的影视内容",
     "labels": "订阅,网盘,转存,搜索,通知,刮削,签到,ed2k,magnet",
-    "version": "1.5.1",
+    "version": "1.5.2",
     "icon": "https://raw.githubusercontent.com/odomu/MoviePilot-Plugins/main/icons/cloud.png",
     "author": "odomu",
     "level": 1,
