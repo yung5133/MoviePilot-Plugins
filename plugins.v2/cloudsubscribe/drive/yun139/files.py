@@ -17,7 +17,7 @@ from ...core.cloud import CloudFile
 class Yun139FileService(CloudDriveFileServiceBase):
     provider_name = "移动云盘"
     provider_key = "yun139"
-    root_directory_id = "/"
+    root_directory_id = "0"
 
     def __init__(self, client):
         self.client = client
@@ -27,7 +27,10 @@ class Yun139FileService(CloudDriveFileServiceBase):
     def _to_cloud_file(item: dict) -> CloudFile:
         file_id = str(item.get("fileId") or item.get("id") or "")
         name = str(item.get("name") or item.get("fileName") or "")
-        is_directory = str(item.get("fileType") or "").lower() == "folder" or bool(
+        type_value = str(
+            item.get("type") or item.get("contentType") or ""
+        ).strip().lower()
+        is_directory = type_value in {"folder", "dir", "catalog"} or bool(
             item.get("isDir")
         )
         return CloudFile(
