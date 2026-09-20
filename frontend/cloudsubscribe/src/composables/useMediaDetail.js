@@ -52,6 +52,7 @@ export function useMediaDetail({api, pluginId, pluginConfig, showMessage}) {
     {key: "123", name: "123云盘"},
     {key: "tianyi", name: "天翼云盘"},
     {key: "guangya", name: "光鸭网盘"},
+    {key: "yun139", name: "移动云盘"},
   ]);
   const activeChannelTab = ref("pansou");
   const activeResourceTab = ref("");
@@ -113,6 +114,7 @@ export function useMediaDetail({api, pluginId, pluginConfig, showMessage}) {
       "uc",
       "guangya",
       "tianyi",
+      "yun139",
       "123",
       "xunlei",
       "baidu",

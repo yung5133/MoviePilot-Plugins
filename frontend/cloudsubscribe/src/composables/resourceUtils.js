@@ -213,7 +213,16 @@ export function getNormalizedResourceType(item) {
   const raw = String(item?.resource_type || item?.pan_type || "")
     .toLowerCase()
     .trim();
-  const aliases = {aliyun: "alipan", ali: "alipan", "115pan": "115", "123pan": "123", magnetlink: "magnet"};
+  const aliases = {
+    aliyun: "alipan",
+    ali: "alipan",
+    "115pan": "115",
+    "123pan": "123",
+    magnetlink: "magnet",
+    "139": "yun139",
+    mobile: "yun139",
+    caiyun: "yun139",
+  };
   return aliases[raw] || raw || "other";
 }
 
@@ -232,6 +241,7 @@ export function getResourceTypeName(type) {
     torrent: "BT种子",
     pikpak: "PikPak",
     guangya: "光鸭网盘",
+    yun139: "移动云盘",
   };
   const key = String(type || "").toLowerCase();
   return map[key] || (type ? String(type).toUpperCase() : "未知类型");
@@ -248,6 +258,7 @@ export function getResourceTabIcon(type) {
     tianyi: "mdi-cloud-check-outline",
     123: "mdi-cloud-refresh-outline",
     guangya: "mdi-cloud-outline",
+    yun139: "mdi-cellphone-link",
     xunlei: "mdi-flash",
     magnet: "mdi-magnet",
     ed2k: "mdi-link-variant",
@@ -307,6 +318,7 @@ export function getTypeColor(type) {
     magnet: "red-darken-1",
     ed2k: "blue-grey-darken-1",
     pikpak: "deep-purple",
+    yun139: "green-darken-1",
   };
   return map[String(type || "").toLowerCase()] || "blue-grey";
 }
@@ -587,7 +599,9 @@ export function canPreviewResource(item) {
   if (resType === "ed2k") return false;
   const previewableType = Boolean(
     item?.can_preview ||
-    ["115", "quark", "alipan", "uc", "tianyi", "baidu", "123", "guangya", "magnet", "torrent"].includes(resType),
+    ["115", "quark", "alipan", "uc", "tianyi", "baidu", "123", "guangya", "yun139", "magnet", "torrent"].includes(
+      resType,
+    ),
   );
   if (!previewableType) return false;
   const hasUrl = Boolean(item?.url);

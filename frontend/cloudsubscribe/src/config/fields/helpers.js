@@ -12,6 +12,7 @@ export function createResourceTypeItems(cloudDriveItems, config) {
     {title: "光鸭分享", value: "guangya"},
     {title: "天翼云盘", value: "tianyi"},
     {title: "阿里云盘", value: "alipan"},
+    {title: "移动云盘", value: "yun139"},
     {title: "ED2K", value: "ed2k"},
     {title: "Magnet", value: "magnet"},
   ]

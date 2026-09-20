@@ -78,3 +78,21 @@ ROUTE_POLICY_MOD_PERSONAL = "personal"
 # 该请求头让网关在 routePolicyList 中下发内层路由地址（即带 /hcy 前缀的 httpsUrl）。
 # 缺失此头时返回的是外层地址，拼接 /file/* 仍会路由失败。
 ROUTE_POLICY_INNER_HCY_HEADER = "Inner-Hcy-Router-Https"
+
+
+# --------------------------------------------------------------------------- #
+# 容量（存储配额）
+# --------------------------------------------------------------------------- #
+
+# 个人云容量接口。注意它挂在「用户态」主机（USER_API）下，
+# 而不是个人云 /hcy 主机下——写成 {personal_api}/file/getDiskInfo 之类是无效的。
+USER_DISK_QUOTA_PATH = "/user/disk/quota/detail"
+
+# 该接口以 userDomainId 定位用户。取值来自浏览器 Cookie 的 ud_id
+# （形如 1151300927707421677 的纯数字 ID，不是手机号）。
+# 两处都取不到时，容量栏只能留空——列目录与转存不受影响。
+USER_DOMAIN_ID_COOKIE_KEYS = ("ud_id", "userDomainId")
+
+# 容量接口返回的 diskSize / freeDiskSize 单位为 MB，需换算为字节。
+# 依据：OpenList drivers/139 的 GetDetails 中两字段均乘以 utils.MB。
+QUOTA_UNIT_BYTES = 1024 * 1024

@@ -55,7 +55,17 @@ class Yun139DriverDefinition(DriverDefinition):
                         label="登录 Cookie",
                         type="password",
                         cols=6,
-                        hint="可选，无 Authorization 时回退使用浏览器 Cookie。",
+                        hint="可选，无 Authorization 时回退使用浏览器 Cookie；"
+                             "Cookie 中若含 ud_id，会自动用于查询网盘容量。",
+                    ),
+                    FieldSpec(
+                        key="yun139_user_domain_id",
+                        label="用户域 ID（ud_id）",
+                        type="text",
+                        cols=6,
+                        placeholder="留空则尝试从登录 Cookie 提取",
+                        hint="浏览器 Cookie 中的 ud_id，纯数字 ID，用于查询网盘容量；"
+                             "留空时容量栏显示为空，不影响列目录与转存。",
                     ),
                     FieldSpec(
                         key="yun139_transfer_path",
@@ -107,6 +117,11 @@ class Yun139DriverDefinition(DriverDefinition):
         phone = str(
             config.get("_yun139_phone") or config.get("yun139_phone") or ""
         ).strip()
+        # 容量查询所需的用户域 ID；留空时客户端会再尝试从 Cookie 的 ud_id 提取。
+        user_domain_id = str(
+            config.get("_yun139_user_domain_id")
+            or config.get("yun139_user_domain_id") or ""
+        ).strip()
         if not authorization and not cookie:
             return None
         timeout = float(
@@ -118,6 +133,7 @@ class Yun139DriverDefinition(DriverDefinition):
             cookie=cookie,
             phone=phone,
             timeout=timeout,
+            user_domain_id=user_domain_id,
         )
 
     @classmethod

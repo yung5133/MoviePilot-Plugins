@@ -146,6 +146,7 @@ class UIConfig:
             "yun139_authorization": "",
             "yun139_cookie": "",
             "yun139_phone": "",
+            "yun139_user_domain_id": "",
             "yun139_request_timeout": 30,
             "alipan_access_token": "",
             "alipan_refresh_token": "",

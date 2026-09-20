@@ -9,7 +9,12 @@
 ``constants.FALLBACK_PERSONAL_API``。``/hcy`` 是网关内层路由前缀，属于路径的一部分，
 ``/file/*`` 必须拼在其之后，否则网关无法路由，表现为「授权可识别手机号但列不出目录」。
 
-主机、根目录标识、路由策略等常量统一在 ``constants.py`` 定义，本文件不重复字面量。
+网盘容量（存储配额）走的是**另一个主机另一个接口**：``POST {USER_API}/user/disk/quota/detail``，
+以 ``userDomainId`` 定位用户，响应 ``data.diskSize`` / ``data.freeDiskSize`` 单位为 MB。
+该字段取自浏览器 Cookie 的 ``ud_id``，也可由用户在配置中直接填写；两者都缺失时容量栏
+留空，但**不影响列目录、下载与转存**——容量查询的任何失败都被收敛为「不展示」。
+
+主机、根目录标识、路由策略、容量接口等常量统一在 ``constants.py`` 定义，本文件不重复字面量。
 """
 
 from __future__ import annotations
@@ -23,13 +28,18 @@ import string
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 import requests
 from app.log import logger
 
 from . import constants
-from ..common import DriveRateLimiter
+from ..common import DriveRateLimiter, format_size, safe_int
+
+# 预先把配置里声明的 Cookie 键名小写化，避免每次解析都重建集合。
+_USER_DOMAIN_ID_COOKIE_KEYS = frozenset(
+    str(key).lower() for key in constants.USER_DOMAIN_ID_COOKIE_KEYS
+)
 
 
 class Yun139ApiError(RuntimeError):
@@ -55,7 +65,7 @@ class Yun139Client:
 
     def __init__(
             self, authorization: str = "", cookie: str = "",
-            phone: str = "", timeout: int = 30,
+            phone: str = "", timeout: int = 30, user_domain_id: str = "",
     ):
         self.authorization = self._strip_basic_prefix(authorization)
         self.cookie = str(cookie or "").strip()
@@ -63,6 +73,12 @@ class Yun139Client:
             self.authorization
         )
         self.timeout = max(10, int(timeout or 30))
+        # 容量查询所需的用户域 ID：配置显式填写优先，其次从 Cookie 的 ud_id 提取。
+        self._user_domain_id = str(user_domain_id or "").strip()
+        # 首次成功的 userDomainId；命中后优先复用，避免每轮都重新试探。
+        self._quota_identity: str = ""
+        # 容量查询失败提示只记一次，避免每次刷新账号卡片都刷一条 warning。
+        self._quota_warned = False
         # 个人云接入点：首次请求时按账号解析路由策略，之后复用。
         self._personal_api: Optional[str] = None
         self.rate_limiter = DriveRateLimiter.shared(
@@ -107,6 +123,39 @@ class Yun139Client:
             return ""
         account = parts[1].strip()
         return account if re.fullmatch(r"\d{6,15}", account) else ""
+
+    @staticmethod
+    def parse_user_domain_id(cookie: str) -> str:
+        """从浏览器 Cookie 串中取出 ``ud_id``，取不到时返回空串。
+
+        兼容实际粘贴中的多种形态：``a=1; ud_id=123; b=2``、以换行分隔、
+        键或值被引号包裹、带 ``Cookie:`` 前缀、以及值被 URL 编码。
+        """
+        text = str(cookie or "")
+        if not text:
+            return ""
+        # 分号与换行都可能是分隔符；同时剥掉可能残留的 "Cookie:" 前缀。
+        if text.lower().startswith("cookie:"):
+            text = text.split(":", 1)[1]
+        for chunk in re.split(r"[;\n\r]+", text):
+            key, separator, value = chunk.partition("=")
+            if not separator:
+                continue
+            key = key.strip().strip("\"'")
+            if key.lower() not in _USER_DOMAIN_ID_COOKIE_KEYS:
+                continue
+            value = unquote(value.strip().strip("\"'"))
+            if value:
+                return value
+        return ""
+
+    def resolve_user_domain_id(self) -> str:
+        """按优先级解析容量查询所需的 userDomainId：配置项 > Cookie 的 ud_id。"""
+        for value in (self._user_domain_id, self.parse_user_domain_id(self.cookie)):
+            value = str(value or "").strip()
+            if value:
+                return value
+        return ""
 
     @staticmethod
     def _mcloud_sign(content: str) -> str:
@@ -375,8 +424,102 @@ class Yun139Client:
                 "is_forever_vip": False,
                 "vip_expire_date": "",
             },
-            "storage": {"total": "", "used": "", "remaining": ""},
+            "storage": self.get_storage_info(),
         }
+
+    # ------------------------------------------------------------------ #
+    # 容量（存储配额）
+    # ------------------------------------------------------------------ #
+
+    def get_storage_info(self) -> Dict[str, str]:
+        """配置页展示用的容量字符串；任何失败都返回空串。
+
+        刻意吞掉所有异常：容量属附加信息，查询失败不应把账号卡片从
+        「已连接」降级为错误——那会把本来可用的列目录/转存链路一起赔进去。
+        """
+        try:
+            quota = self.query_disk_quota()
+        except Exception as error:
+            logger.debug(f"移动云盘容量查询异常：{error}")
+            quota = None
+        if not quota:
+            return {"total": "", "used": "", "remaining": ""}
+        return {
+            "total": format_size(quota["total"]),
+            "used": format_size(quota["used"]),
+            "remaining": format_size(quota["remaining"]),
+        }
+
+    def query_disk_quota(self) -> Optional[Dict[str, int]]:
+        """查询容量，成功时返回 {total, used, remaining}（字节），失败返回 None。"""
+        candidates = self._quota_identity_candidates()
+        if not candidates:
+            self._warn_quota_once(
+                "移动云盘容量未查询：无法确定 userDomainId"
+                "（配置项、Cookie 的 ud_id、Authorization 中的手机号均不可用）"
+            )
+            return None
+        for identity in candidates:
+            try:
+                data = self.user_request(
+                    constants.USER_DISK_QUOTA_PATH,
+                    {"userDomainId": identity},
+                )
+            except Exception as error:
+                logger.debug(f"移动云盘容量查询未命中：{error}")
+                continue
+            quota = self._parse_disk_quota(data)
+            if quota:
+                if identity != self._quota_identity:
+                    self._quota_identity = identity
+                    logger.info("移动云盘容量查询已可用")
+                return quota
+        self._warn_quota_once(
+            "移动云盘容量查询失败：候选标识均未被服务端接受（常见于凭据已过期）；"
+            "可重新抓包，或在插件配置中填写「用户域 ID（ud_id）」/ 含 ud_id 的登录 Cookie"
+        )
+        return None
+
+    def _quota_identity_candidates(self) -> List[str]:
+        """容量查询的候选标识，按命中概率排序并去重。
+
+        手机号排在最后仅作兜底：**已实测确认服务端接受手机号充当 userDomainId**
+        （返回 success=true 且 diskSize>0），因此大多数情况下用户无需额外配置。
+        """
+        candidates: List[str] = []
+        for value in (
+            self._quota_identity, self.resolve_user_domain_id(), self.phone,
+        ):
+            value = str(value or "").strip()
+            if value and value not in candidates:
+                candidates.append(value)
+        return candidates
+
+    @staticmethod
+    def _parse_disk_quota(data: dict) -> Optional[Dict[str, int]]:
+        """解析容量响应；diskSize 缺失或非正时视为失败。"""
+        payload = Yun139Client._unwrap(data)
+        if not isinstance(payload, dict):
+            return None
+        total_mb = safe_int(payload.get("diskSize"))
+        free_mb = safe_int(payload.get("freeDiskSize"))
+        if total_mb <= 0:
+            return None
+        # 防御上游把 freeDiskSize 报成大于总量或负数。
+        free_mb = max(0, min(free_mb, total_mb))
+        unit = constants.QUOTA_UNIT_BYTES
+        return {
+            "total": total_mb * unit,
+            "used": (total_mb - free_mb) * unit,
+            "remaining": free_mb * unit,
+        }
+
+    def _warn_quota_once(self, message: str) -> None:
+        """容量不可用只提示一次，避免每次刷新账号卡片都刷一条 warning。"""
+        if self._quota_warned:
+            return
+        self._quota_warned = True
+        logger.warning(message)
 
     # ------------------------------------------------------------------ #
     # 个人云盘文件接口（personal_new：/file/*）
