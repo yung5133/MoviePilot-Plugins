@@ -49,6 +49,8 @@ class Yun139ShareService:
         self.files = files
         # share_key -> {条目路径: 条目字典}，转存接口以路径为标识。
         self._share_entries: Dict[str, Dict[str, dict]] = {}
+        # 仅递归遍历完成后才允许直接消费缓存，防止顶层浏览结果被当成全量。
+        self._fully_scanned: set = set()
         self._lock = RLock()
 
     # ------------------------------------------------------------------ #
@@ -163,9 +165,10 @@ class Yun139ShareService:
         """递归遍历分享目录，缓存全部条目供转存使用。"""
         cache_key = self._share_key(parsed)
         with self._lock:
-            cached = self._share_entries.get(cache_key)
-        if cached and any(not entry["is_dir"] for entry in cached.values()):
-            return cached
+            if cache_key in self._fully_scanned:
+                cached = self._share_entries.get(cache_key)
+                if cached:
+                    return cached
         entries: Dict[str, dict] = {}
         stack = [ROOT_CATALOG]
         depth: Dict[str, int] = {ROOT_CATALOG: 0}
@@ -198,6 +201,7 @@ class Yun139ShareService:
             existing = self._share_entries.get(cache_key) or {}
             existing.update(entries)
             self._share_entries[cache_key] = existing
+            self._fully_scanned.add(cache_key)
             return existing
 
     # ------------------------------------------------------------------ #
