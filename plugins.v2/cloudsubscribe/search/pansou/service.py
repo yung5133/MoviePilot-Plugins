@@ -20,6 +20,13 @@ class PanSouSearchService(OwnerDelegator):
         r"[\s\u3000:：·•.,，。!！?？（）【】\[\]/／\\＼-]+"
     )
 
+    # 内部资源类型与 PanSou 上游类型命名不一致的映射。
+    _PANSOU_TYPE_NAMES = {"alipan": "aliyun", "yun139": "mobile"}
+
+    @classmethod
+    def _pansou_type(cls, value: str) -> str:
+        return cls._PANSOU_TYPE_NAMES.get(value, value)
+
     @staticmethod
     def _normalize_for_match(text: str) -> str:
         value = unicodedata.normalize("NFKC", str(text or ""))
@@ -241,20 +248,18 @@ class PanSouSearchService(OwnerDelegator):
         )
         allowed_types = (
             [
-                "aliyun" if value == "alipan" else value
+                self._pansou_type(value)
                 for value in PANSOU_RESOURCE_TYPES
             ] if query.resource_list_mode else
             [
-                "aliyun" if value == "alipan" else value
+                self._pansou_type(value)
                 for value in self._resource_type_order_config
             ]
         )
         if not query.resource_list_mode and query.subscribe is not None:
             target_drive = str(getattr(self, "_cloud_drive_key", "") or "").strip().lower()
             if target_drive:
-                allowed_types = [
-                    "aliyun" if target_drive == "alipan" else target_drive
-                ]
+                allowed_types = [self._pansou_type(target_drive)]
         response = self._pansou_client.request_search(
             keyword=keyword,
             cloud_types=allowed_types,
