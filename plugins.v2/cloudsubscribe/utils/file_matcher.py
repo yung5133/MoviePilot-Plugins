@@ -118,8 +118,10 @@ class FileMatcher:
             cls, name: str, meta: Any, mediainfo: Any, season: int
     ) -> tuple[Any, int | None]:
         episode = cls._titleless_episode_number(name, meta, season)
-        if episode is None or episode <= 0 or mediainfo is None:
+        if episode is None or episode <= 0:
             return meta, episode
+        if mediainfo is None:
+            return cls._platform_meta(f"S{int(season):02d}E{episode:02d}"), episode
         title = str(
             getattr(mediainfo, "title", None)
             or getattr(mediainfo, "en_title", None)
