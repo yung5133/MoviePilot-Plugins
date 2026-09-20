@@ -142,7 +142,10 @@ class CloudDriveManager:
         if not self.active_drive:
             return
 
-        aliases = {"189": "tianyi", "aliyun": "alipan"}
+        aliases = {
+            "189": "tianyi", "aliyun": "alipan",
+            "139": "yun139", "mobile": "yun139",
+        }
         cross_enabled = getattr(self._plugin, "_cross_transfer_enabled", False)
 
         def resource_supported(value: str) -> bool:
