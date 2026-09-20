@@ -17,7 +17,13 @@ export function createResourceTypeItems(cloudDriveItems, config) {
     {title: "Magnet", value: "magnet"},
   ]
   const activeDrive = cloudDriveItems.find((item) => item.value === (config.cloud_drive || "115"));
-  const supportedTypes = new Set(activeDrive?.resource_types || ["115", "ed2k", "magnet"]);
+  // 只有当当前网盘确实声明了自己支持的类型时才按之过滤。
+  // 历史教训：ui_options 各作用域回传的 cloud_drives 字段完整度不一致，曾有作用域
+  // 缺 capabilities / resource_types，此时若按空集处理，候选会塌缩成 ["115","ed2k","magnet"]，
+  // 表现为"某些网盘类型凭空消失"。数据缺失应当放大候选集，而不是缩小。
+  const declaredTypes = activeDrive?.resource_types;
+  if (!Array.isArray(declaredTypes) || !declaredTypes.length) return resourceTypes;
+  const supportedTypes = new Set(declaredTypes);
   const targetCanUpload = activeDrive?.capabilities?.includes("local_upload");
   if (config.cross_transfer_enabled && targetCanUpload) {
     cloudDriveItems.forEach((drive) => {

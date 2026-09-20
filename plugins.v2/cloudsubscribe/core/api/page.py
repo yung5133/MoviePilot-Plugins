@@ -269,6 +269,35 @@ class PageApi(OwnerDelegator):
             "data": self._get_data_store().history_summary(today),
         }
 
+    def _cloud_drive_payload(self, provider, mode: str = "") -> dict:
+        """网盘描述符，所有 ui_options 作用域共用同一份字段。
+
+        前端 `Config.vue` 的 `applyOptions()` 对 cloud_drives 是无条件覆盖的：
+        后端哪一个作用域少回传字段，前端拿到的就是被"稀释"后的版本。
+        因此这里统一产出，避免 `subscriptions` 之类只回传 title/value 的作用域
+        把 capabilities / resource_types 冲掉，进而让资源类型候选塌缩。
+        """
+        payload = {
+            "title": provider.name,
+            "value": provider.key,
+            "capabilities": sorted(
+                capability.value for capability in provider.capabilities
+            ),
+            "resource_types": sorted(provider.resource_types),
+            "policy": {
+                "pagination_mode": provider.policy.pagination_mode,
+                "max_page_size": provider.policy.max_page_size,
+                "supports_batch": provider.policy.supports_batch,
+                "max_batch_size": provider.policy.max_batch_size,
+                "supports_cancel": provider.policy.supports_cancel,
+                "max_concurrency": provider.policy.max_concurrency,
+                "cache_ttl_seconds": dict(provider.policy.cache_ttl_seconds),
+            },
+        }
+        if mode:
+            payload["mode"] = mode
+        return payload
+
     def api_vue_ui_options(self, scope: str = "base", refresh: bool = False) -> dict:
         normalized_scope = str(scope or "base").strip().lower()
         normalized_scope = {
@@ -368,11 +397,9 @@ class PageApi(OwnerDelegator):
                 )
                 if not direct and not cross:
                     continue
-                cloud_drives.append({
-                    "title": provider.name,
-                    "value": provider.key,
-                    "mode": "direct" if direct else "cross",
-                })
+                cloud_drives.append(
+                    self._cloud_drive_payload(provider, "direct" if direct else "cross")
+                )
             result = {
                 "success": True,
                 "data": {
@@ -406,26 +433,7 @@ class PageApi(OwnerDelegator):
                         "mediaservers": UIConfig.get_media_server_options(),
                         "checkin_schemas": get_checkin_schemas(),
                         "cloud_drives": [
-                            {
-                                "title": provider.name,
-                                "value": provider.key,
-                                "capabilities": sorted(
-                                    capability.value
-                                    for capability in provider.capabilities
-                                ),
-                                "resource_types": sorted(provider.resource_types),
-                                "policy": {
-                                    "pagination_mode": provider.policy.pagination_mode,
-                                    "max_page_size": provider.policy.max_page_size,
-                                    "supports_batch": provider.policy.supports_batch,
-                                    "max_batch_size": provider.policy.max_batch_size,
-                                    "supports_cancel": provider.policy.supports_cancel,
-                                    "max_concurrency": provider.policy.max_concurrency,
-                                    "cache_ttl_seconds": dict(
-                                        provider.policy.cache_ttl_seconds
-                                    ),
-                                },
-                            }
+                            self._cloud_drive_payload(provider)
                             for provider in providers
                         ],
                     },
