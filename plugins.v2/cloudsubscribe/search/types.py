@@ -8,6 +8,9 @@ TYPE_ALIASES = {
     "ali": "alipan",
     "aliyun": "alipan",
     "189": "tianyi",
+    "139": "yun139",
+    "mobile": "yun139",
+    "caiyun": "yun139",
     "magnetlink": "magnet",
 }
 TYPE_HOSTS = {
@@ -20,6 +23,7 @@ TYPE_HOSTS = {
     "alipan": {"alipan.com", "aliyundrive.com", "aliyundrive.net"},
     "tianyi": {"cloud.189.cn"},
     "guangya": {"guangyapan.com"},
+    "yun139": {"139.com", "caiyun.feixin.10086.cn"},
 }
 TYPE_NAMES = {
     "115": "115网盘",
@@ -30,13 +34,14 @@ TYPE_NAMES = {
     "ed2k": "电驴链接",
     "tianyi": "天翼云盘",
     "guangya": "光鸭云盘",
+    "yun139": "移动云盘",
     "cloud": "网盘路径",
     "share": "网盘分享",
 }
 
 SUPPORTED_CLOUD_TYPES = tuple(TYPE_HOSTS)
 RESOURCE_TYPE_ORDER = (
-    "115", "123", "quark", "guangya", "tianyi", "alipan",
+    "115", "123", "quark", "guangya", "tianyi", "yun139", "alipan",
     "ed2k", "magnet",
 )
 SUPPORTED_RESOURCE_TYPES = frozenset(RESOURCE_TYPE_ORDER)
@@ -45,7 +50,7 @@ RESOURCE_TYPE_PRIORITY = {
     for index, resource_type in enumerate(RESOURCE_TYPE_ORDER)
 }
 PANSOU_RESOURCE_TYPES = (
-    "aliyun", "quark", "guangya", "tianyi",
+    "aliyun", "quark", "guangya", "tianyi", "mobile",
     "115", "123", "magnet", "ed2k",
 )
 PREVIEW_PROVIDER_KEYS = {
@@ -55,6 +60,7 @@ PREVIEW_PROVIDER_KEYS = {
     "guangya": "guangya",
     "tianyi": "tianyi",
     "alipan": "alipan",
+    "yun139": "yun139",
 }
 PREVIEW_RESOURCE_TYPES = frozenset({*PREVIEW_PROVIDER_KEYS, "magnet"})
 
@@ -64,6 +70,7 @@ _TYPE_TEXT_MARKERS = {
     "quark": ("夸克", "quark"),
     "guangya": ("光鸭", "guangya"),
     "tianyi": ("天翼", "cloud.189.cn"),
+    "yun139": ("移动云盘", "和彩云", "caiyun", "139.com"),
     "alipan": ("阿里云盘", "阿里网盘", "alipan", "aliyundrive"),
     "ed2k": ("ed2k://", "电驴"),
     "magnet": ("magnet:?", "磁力"),
