@@ -824,7 +824,12 @@ async function loadOptions() {
     if (result.success === false) throw new Error(result.message || "加载订阅失败")
     const data = result.data?.data || result.data || result
     subscribes.value = Array.isArray(data.subscribes) ? data.subscribes : []
-    cloudDrives.value = Array.isArray(data.cloud_drives) ? data.cloud_drives : [];
+    // transfer_drives 才是"可作为转存来源的网盘"（带 mode=direct/cross）；
+    // cloud_drives 现在是全量网盘，不能拿来当来源候选。
+    const driveList = Array.isArray(data.transfer_drives)
+      ? data.transfer_drives
+      : Array.isArray(data.cloud_drives) ? data.cloud_drives : [];
+    cloudDrives.value = driveList;
     targetCloudDrive.value = String(data.target_cloud_drive || "");
     enableCloudUpgrade.value = Boolean(data.enable_cloud_upgrade);
     crossTransferMediaTypes.value = Array.isArray(data.cross_transfer_media_types)

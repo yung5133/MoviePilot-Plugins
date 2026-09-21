@@ -662,6 +662,7 @@ import {computed, defineAsyncComponent, onBeforeUnmount, onMounted, reactive, re
 import {useDisplay} from "vuetify";
 import ConfigSection from "./config/ConfigSection.vue";
 import {createConfigSections} from "../config/fields.js";
+import {createResourceTypeItems, mergeCloudDriveOptions} from "../config/fields/helpers.js";
 
 const QrCodeDialog = defineAsyncComponent(() => import("./dialogs/QrCodeDialog.vue"))
 const DirectoryDialog = defineAsyncComponent(() => import("./dialogs/DirectoryDialog.vue"));
@@ -878,6 +879,7 @@ const options = reactive({
   mediaLibraryWebhookUrls: {},
   notificationTypes: [],
   cloudDrives: [],
+  transferDrives: [],
   account: {},
   accounts: {},
   searchAccounts: {},
@@ -1051,7 +1053,15 @@ function applyOptions(data) {
     options.notificationTypes = Array.isArray(data.notification_types) ? data.notification_types : []
   }
   if ("cloud_drives" in data) {
-    options.cloudDrives = Array.isArray(data.cloud_drives) ? data.cloud_drives : []
+    // 并集而非覆盖：subscriptions 作用域回传的是"可作为转存来源的网盘"子集，
+    // 直接覆盖会让未入选的网盘从「当前转存网盘」下拉与资源类型候选中消失。
+    options.cloudDrives = mergeCloudDriveOptions(
+      options.cloudDrives,
+      Array.isArray(data.cloud_drives) ? data.cloud_drives : [],
+    )
+  }
+  if ("transfer_drives" in data) {
+    options.transferDrives = Array.isArray(data.transfer_drives) ? data.transfer_drives : []
   }
   if ("account" in data) {
     options.account = data.account && typeof data.account === "object" ? data.account : {}

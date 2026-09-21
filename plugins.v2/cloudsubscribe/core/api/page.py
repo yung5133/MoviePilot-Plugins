@@ -270,12 +270,14 @@ class PageApi(OwnerDelegator):
         }
 
     def _cloud_drive_payload(self, provider, mode: str = "") -> dict:
-        """网盘描述符，所有 ui_options 作用域共用同一份字段。
+        """网盘描述符，所有作用域共用同一份构造。
 
-        前端 `Config.vue` 的 `applyOptions()` 对 cloud_drives 是无条件覆盖的：
-        后端哪一个作用域少回传字段，前端拿到的就是被"稀释"后的版本。
-        因此这里统一产出，避免 `subscriptions` 之类只回传 title/value 的作用域
-        把 capabilities / resource_types 冲掉，进而让资源类型候选塌缩。
+        两个约束同时成立，缺一不可：
+        1. 字段一致：前端 `Config.vue::applyOptions()` 对 cloud_drives 是覆盖式写入，
+           任何一个作用域少回传字段，前端拿到的就是被"稀释"的版本。
+        2. 成员语义一致：`cloud_drives` 必须始终是"全部已配置网盘"。
+           转存语境下"可作为来源的网盘"是它的子集，必须走 `transfer_drives`，
+           否则窄列表会覆盖全量，让未入选的网盘从「当前转存网盘」下拉里消失。
         """
         payload = {
             "title": provider.name,
@@ -383,7 +385,7 @@ class PageApi(OwnerDelegator):
                 and self._cloud_drive.supports(CloudDriveCapability.LOCAL_UPLOAD)
                 and self._cloud_drive.supports(CloudDriveCapability.FILE_QUERY)
             )
-            cloud_drives = []
+            transfer_drives = []
             for provider in providers:
                 if not provider.supports(CloudDriveCapability.DIRECTORY_READ):
                     continue
@@ -397,14 +399,32 @@ class PageApi(OwnerDelegator):
                 )
                 if not direct and not cross:
                     continue
-                cloud_drives.append(
-                    self._cloud_drive_payload(provider, "direct" if direct else "cross")
+                transfer_drives.append(
+                    self._cloud_drive_payload(
+                        provider, "direct" if direct else "cross"
+                    )
                 )
+            # 全量网盘列表：转存语境只用到 transfer_drives，但前端「当前转存网盘」
+            # 下拉与资源类型候选都读 cloud_drives，必须是全集。
+            cloud_drives = [
+                self._cloud_drive_payload(
+                    provider,
+                    "direct" if provider.key == target_key else (
+                        "cross" if any(
+                            item.get("value") == provider.key
+                            and item.get("mode") == "cross"
+                            for item in transfer_drives
+                        ) else ""
+                    ),
+                )
+                for provider in providers
+            ]
             result = {
                 "success": True,
                 "data": {
                     "subscribes": UIConfig.get_subscribe_options_grouped(),
                     "cloud_drives": cloud_drives,
+                    "transfer_drives": transfer_drives,
                     "target_cloud_drive": target_key,
                     "enable_cloud_upgrade": bool(
                         getattr(self, "_enable_cloud_upgrade", False)
