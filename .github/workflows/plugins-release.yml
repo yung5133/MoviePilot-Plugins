@@ -182,9 +182,11 @@ jobs:
           RELEASE_NAME: ${{ matrix.plugin.name }} v${{ matrix.plugin.version }}
           RELEASE_NOTES: ${{ matrix.plugin.notes }}
           ASSET_NAME: ${{ matrix.plugin.asset_name }}
+          TARGET_SHA: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
           gh release create "$TAG_NAME" "$ASSET_NAME" \
+            --target "$TARGET_SHA" \
             --title "$RELEASE_NAME" \
             --notes "$RELEASE_NOTES"
