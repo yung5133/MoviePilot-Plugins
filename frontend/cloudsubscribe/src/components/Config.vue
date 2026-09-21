@@ -1903,10 +1903,13 @@ watch(
   { deep: true },
 )
 
+// 候选集只由「已配置网盘的能力并集」决定，与 config.cloud_drive /
+// config.cross_transfer_enabled 无关，因此不再监听它们：否则一切换转存网盘，
+// 下面的剪枝就会按新候选集删掉用户已保存的资源类型优先级。
 watch(
-  [() => config.cloud_drive, () => config.cross_transfer_enabled, () => options.cloudDrives],
-  ([provider, crossTransfer, drives], [previousProvider, previousCrossTransfer, previousDrives]) => {
-    if (provider === previousProvider && crossTransfer === previousCrossTransfer && drives === previousDrives) return
+  [() => options.cloudDrives],
+  ([drives], [previousDrives]) => {
+    if (drives === previousDrives) return
     const supported = new Set(createResourceTypeItems(options.cloudDrives, config).map((item) => item.value))
     config.resource_type_order = (config.resource_type_order || []).filter((value) => supported.has(value))
   },

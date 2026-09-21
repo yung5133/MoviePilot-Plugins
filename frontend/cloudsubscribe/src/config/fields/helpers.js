@@ -27,7 +27,18 @@ export function mergeCloudDriveOptions(current, incoming) {
   return [...merged.values()];
 }
 
-export function createResourceTypeItems(cloudDriveItems, config) {
+/**
+ * 资源类型候选列表。
+ *
+ * 候选集只由「已配置哪些网盘」决定，**与「当前转存网盘」无关**。
+ * 后者是运行时选择；曾用它收窄候选，配合 Config.vue 里按候选集剪枝的 watcher，
+ * 会在切换转存网盘时把用户已保存的 resource_type_order 静默删掉
+ * （选移动云盘 → 115/夸克/ed2k 被删；选夸克 → 移动云盘被删）。
+ * 能否真正转存由后端在转存阶段按能力判断，不应反过来改写用户的搜索范围配置。
+ *
+ * 第 2 个参数仅为兼容既有调用方保留，本函数刻意不读取它。
+ */
+export function createResourceTypeItems(cloudDriveItems, _config) {
   const resourceTypes = [
     {title: "115分享", value: "115"},
     {title: "123分享", value: "123"},
@@ -39,29 +50,17 @@ export function createResourceTypeItems(cloudDriveItems, config) {
     {title: "ED2K", value: "ed2k"},
     {title: "Magnet", value: "magnet"},
   ]
-  const activeDrive = cloudDriveItems.find((item) => item.value === (config.cloud_drive || "115"));
-  const declaredTypes = activeDrive?.resource_types;
-  if (!Array.isArray(declaredTypes) || !declaredTypes.length) {
-    // 数据缺失时应当放大候选集而不是缩小：拿不到能力声明就交出全量，
-    // 由后端在保存时按真实能力收敛，避免候选塌缩成 115/ed2k/magnet 三项。
+  const supportedTypes = new Set();
+  (Array.isArray(cloudDriveItems) ? cloudDriveItems : []).forEach((drive) => {
+    const declared = drive?.resource_types;
+    if (Array.isArray(declared)) {
+      declared.forEach((value) => supportedTypes.add(value));
+    }
+  });
+  if (!supportedTypes.size) {
+    // 数据缺失时应当放大候选集而不是缩小：拿不到任何能力声明就交出全量，
+    // 由后端在保存/转存阶段按真实能力收敛。
     return resourceTypes;
-  }
-  const supportedTypes = new Set(declaredTypes);
-  const targetCanUpload = activeDrive?.capabilities?.includes("local_upload");
-  if (config.cross_transfer_enabled && targetCanUpload) {
-    cloudDriveItems.forEach((drive) => {
-      const capabilities = new Set(drive.capabilities || []);
-      if (
-        drive.value === activeDrive?.value ||
-        !capabilities.has("share_transfer") ||
-        !capabilities.has("file_download")
-      ) {
-        return;
-      }
-      ;(drive.resource_types || []).forEach((value) => {
-        if (!["ed2k", "magnet"].includes(value)) supportedTypes.add(value);
-      })
-    })
   }
   return resourceTypes.filter((item) => supportedTypes.has(item.value));
 }
